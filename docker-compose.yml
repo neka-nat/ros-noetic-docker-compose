@@ -1,0 +1,30 @@
+version: '3'
+
+networks:
+  ros:
+    driver: bridge
+
+services:
+  master:
+    image: osrf/ros:noetic-desktop-full
+    container_name: master
+    command: roscore
+    networks:
+      - ros
+    restart: always
+  app:
+    image: ros-noetic-ws:latest
+    depends_on:
+      - master
+    build: .
+    container_name: rosnoetic
+    environment:
+      - "ROS_HOSTNAME=rosnoetic"
+      - "ROS_MASTER_URI=http://master:11311"
+    volumes:
+      - ./:/catkin_ws
+      - /dev:/dev
+    networks:
+      - ros
+    tty: true
+    privileged: true

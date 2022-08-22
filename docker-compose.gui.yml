@@ -1,0 +1,39 @@
+version: '3'
+
+networks:
+  ros:
+    driver: bridge
+
+services:
+  master:
+    image: osrf/ros:noetic-desktop-full
+    container_name: master
+    command: roscore
+    networks:
+      - ros
+    restart: always
+  app:
+    image: ros-noetic-ws:latest
+    depends_on:
+      - master
+    build: .
+    container_name: rosnoetic
+    environment:
+      - "ROS_HOSTNAME=rosnoetic"
+      - "ROS_MASTER_URI=http://master:11311"
+      - "DISPLAY=${DISPLAY}"
+      - "NVIDIA_VISIBLE_DEVICES=all"
+      - "NVIDIA_DRIVER_CAPABILITIES=all"
+    volumes:
+      - ./:/catkin_ws
+      - /dev:/dev
+      - "/tmp/.X11-unix:/tmp/.X11-unix:rw"
+    networks:
+      - ros
+    tty: true
+    privileged: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - capabilities: [gpu]
