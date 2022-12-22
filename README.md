@@ -1,5 +1,12 @@
 #  ros-noetic-docker-compose
 
+## What is installed in the Docker image
+
+* ROS noetic
+* gazebo
+* librealsense2
+* tmux
+
 ## Build
 Copy the complete code of this repository into the top directory of the catkin workspace.
 
