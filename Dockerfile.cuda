@@ -1,0 +1,72 @@
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN apt-get update && apt-get install -y tzdata
+ENV TZ Asia/Tokyo
+
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    libegl1 \
+    libgl1 \
+    libgomp1 \
+    python3-pip \
+    make \
+    git \
+    cmake \
+    wget \
+    curl \
+    libssl-dev \
+    lsb-release \
+    tmux \
+    && rm -rf /var/lib/apt/lists/*
+
+
+WORKDIR /source
+
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.26.5/cmake-3.26.5.tar.gz \
+    && tar zxvf cmake-3.26.5.tar.gz \
+    && cd cmake-3.26.5 \
+    && ./bootstrap -- -DCMAKE_USE_OPENSSL=ON \
+    && make \
+    && make install
+
+RUN git clone -b v0.17.0 --recursive https://github.com/intel-isl/Open3D \
+    && cd Open3D \
+    && chmod +x util/install_deps_ubuntu.sh \
+    && sed -i 's/SUDO=${SUDO:=sudo}/SUDO=${SUDO:=}/g' \
+        util/install_deps_ubuntu.sh \
+    && util/install_deps_ubuntu.sh assume-yes \
+    && mkdir build \
+    && cd build \
+    && cmake \
+        -DCMAKE_INSTALL_PREFIX=/usr/local/ \
+        -DBUILD_CUDA_MODULE=ON \
+        -DBUILD_COMMON_CUDA_ARCHS=ON \
+        -DBUILD_CACHED_CUDA_MANAGER=ON \
+        -DBUILD_PYTHON_MODULE=ON \
+        -DPYTHON_EXECUTABLE=/usr/bin/python3 \
+        ..
+
+RUN cd Open3D/build \
+    && make -j$(nproc) \
+    && make install-pip-package
+
+RUN sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list' \
+    && curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - \
+    && apt-get update \
+    && apt-get install ros-noetic-desktop-full python3-rosdep python3-catkin-tools -y \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY . /catkin_ws
+COPY .tmux.conf /root
+WORKDIR /catkin_ws
+
+RUN rosdep init \
+    && apt-get update \
+    && rosdep update && DEBIAN_FRONTEND=noninteractive rosdep install --from-paths src -i -y --rosdistro noetic \
+    && rm -rf /var/lib/apt/lists/{apt,dpkg,cache,log} /tmp/* /var/tmp/*
+
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && \
+    catkin init && \
+    catkin config -j 1 -p 1"
+
+RUN echo "source /catkin_ws/devel/setup.bash" >> /root/.bashrc
